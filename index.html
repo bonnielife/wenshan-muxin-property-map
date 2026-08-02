@@ -115,6 +115,18 @@
     color:#fff;
     border-color:var(--ink);
   }
+  .price-select{
+    font-size:11.5px;
+    padding:4px 8px;
+    border-radius:20px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--text-dim);
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .price-select:focus{ outline:2px solid var(--brass); outline-offset:1px; }
+  .price-select.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
   #list{
     flex:1;
     overflow-y:auto;
@@ -234,6 +246,15 @@
       <div class="chip" data-filter="new">新增物件</div>
       <div class="chip" data-filter="link">有詳情連結</div>
       <div class="chip" data-filter="key">🔑 有鑰匙</div>
+      <select class="price-select" id="priceRange" aria-label="價格區間篩選">
+        <option value="all">💰 全部價格</option>
+        <option value="0-1000">1000萬以下</option>
+        <option value="1000-1500">1000–1500萬</option>
+        <option value="1500-2000">1500–2000萬</option>
+        <option value="2000-3000">2000–3000萬</option>
+        <option value="3000-5000">3000–5000萬</option>
+        <option value="5000-">5000萬以上</option>
+      </select>
     </div>
     <div id="list"></div>
   </div>
@@ -306,11 +327,19 @@ if(bounds.length){ map.fitBounds(bounds, { padding: [30,30] }); }
 
 let activeFilter = 'all';
 let searchTerm = '';
+let priceRange = 'all';
 
 function passesFilter(item){
   if(activeFilter === 'new' && !item.new) return false;
   if(activeFilter === 'link' && !item.link) return false;
   if(activeFilter === 'key' && !item.key) return false;
+  if(priceRange !== 'all'){
+    const p = item.price;
+    if(p === null || p === undefined || p === '') return false;
+    const [lo, hi] = priceRange.split('-');
+    if(lo && p < Number(lo)) return false;
+    if(hi && p >= Number(hi)) return false;
+  }
   if(searchTerm){
     const hay = (item.name + ' ' + item.addr + ' ' + (item.agent||'') + (item.key ? ' 有鑰匙 key 鑰匙' : '')).toLowerCase();
     if(!hay.includes(searchTerm)) return false;
@@ -322,6 +351,14 @@ function renderList(){
   const list = document.getElementById('list');
   const filtered = DATA.filter(passesFilter);
   document.getElementById('countBadge').textContent = `共 ${DATA.length} 筆・🔑 ${DATA.filter(d=>d.key).length} 筆有鑰匙・顯示 ${filtered.length} 筆`;
+
+  // 同步地圖釘子:只顯示符合篩選的物件
+  DATA.forEach(item => {
+    const m = markers[item.id];
+    if(!m) return;
+    if(passesFilter(item)){ if(!map.hasLayer(m)) m.addTo(map); }
+    else if(map.hasLayer(m)){ map.removeLayer(m); }
+  });
 
   if(filtered.length === 0){
     list.innerHTML = '<div class="empty-state">沒有符合條件的物件</div>';
@@ -370,6 +407,12 @@ document.querySelectorAll('.chip').forEach(chip => {
     activeFilter = chip.dataset.filter;
     renderList();
   });
+});
+
+document.getElementById('priceRange').addEventListener('change', (e) => {
+  priceRange = e.target.value;
+  e.target.classList.toggle('active', priceRange !== 'all');
+  renderList();
 });
 
 renderList();
